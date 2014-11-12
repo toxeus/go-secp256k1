@@ -64,10 +64,7 @@ func Verify(msg []byte, sig []byte, pubkey []byte) bool {
 }
 
 func goBool(success C.int) bool {
-	if success == 1 {
-		return true
-	}
-	return false
+	return success == 1
 }
 
 func cBuf(goSlice []byte) *C.uchar {
