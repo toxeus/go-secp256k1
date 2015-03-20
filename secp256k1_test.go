@@ -2,9 +2,11 @@ package secp256k1_test
 
 import (
 	"crypto/rand"
-	"github.com/toxeus/go-secp256k1"
+	"crypto/sha256"
 	"io"
 	"testing"
+
+	"github.com/toxeus/go-secp256k1"
 )
 
 func Test_secp256k1(t *testing.T) {
@@ -21,13 +23,14 @@ func Test_secp256k1(t *testing.T) {
 	}
 	msg := make([]byte, 32)
 	io.ReadFull(rand.Reader, msg)
+	hash := sha256.Sum256(msg)
 	var nonce [32]byte
 	io.ReadFull(rand.Reader, nonce[:])
-	sig, ok := secp256k1.Sign(msg, seckey, nonce)
+	sig, ok := secp256k1.Sign(hash, seckey, &nonce)
 	if !ok {
 		t.FailNow()
 	}
-	if ok := secp256k1.Verify(msg, sig, pubkey); !ok {
+	if ok := secp256k1.Verify(hash, sig, pubkey); !ok {
 		t.FailNow()
 	}
 }

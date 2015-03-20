@@ -5,8 +5,17 @@ package secp256k1
 import "C"
 import "unsafe"
 
+// The Go API mirrors the API of the C implementation. Therefore,
+// please consult c-secp256k1/include/secp256k1.h for documentation.
+// Going forward I plan to implement a new API that is more aligned
+// with the APIs from Go's standard lib crypto packages. Then, it makes
+// more sense to have a good documentation, and hopefully breaking
+// changes in the C implementation can be abstracted away.
+
+const hashLen int = 32
+
 func Start() {
-	C.secp256k1_start()
+	C.secp256k1_start(C.SECP256K1_START_VERIFY | C.SECP256K1_START_SIGN)
 }
 
 func Stop() {
@@ -22,7 +31,7 @@ func Pubkey_create(seckey [32]byte, compressed bool) ([]byte, bool) {
 	}
 	pubkey := make([]C.uchar, bufsize)
 	pubkeylen := C.int(0)
-	success := C.secp256k1_ecdsa_pubkey_create(&pubkey[0],
+	success := C.secp256k1_ec_pubkey_create(&pubkey[0],
 		&pubkeylen,
 		cBuf(seckey[:]),
 		comp)
@@ -30,30 +39,29 @@ func Pubkey_create(seckey [32]byte, compressed bool) ([]byte, bool) {
 }
 
 func Seckey_verify(seckey [32]byte) bool {
-	success := C.secp256k1_ecdsa_seckey_verify(cBuf(seckey[:]))
+	success := C.secp256k1_ec_seckey_verify(cBuf(seckey[:]))
 	return goBool(success)
 }
 
 func Pubkey_verify(pubkey []byte) bool {
-	success := C.secp256k1_ecdsa_pubkey_verify(cBuf(pubkey), C.int(len(pubkey)))
+	success := C.secp256k1_ec_pubkey_verify(cBuf(pubkey), C.int(len(pubkey)))
 	return goBool(success)
 }
 
-func Sign(msg []byte, seckey [32]byte, nonce [32]byte) ([]byte, bool) {
+func Sign(msgHash [hashLen]byte, seckey [32]byte, nonce *[32]byte) ([]byte, bool) {
 	var sig [72]C.uchar
 	siglen := C.int(len(sig))
-	success := C.secp256k1_ecdsa_sign(cBuf(msg),
-		C.int(len(msg)),
+	success := C.secp256k1_ecdsa_sign(cBuf(msgHash[:]),
 		&sig[0],
 		&siglen,
 		cBuf(seckey[:]),
-		cBuf(nonce[:]))
+		nil,
+		unsafe.Pointer(nonce))
 	return C.GoBytes(unsafe.Pointer(&sig[0]), siglen), goBool(success)
 }
 
-func Verify(msg []byte, sig []byte, pubkey []byte) bool {
-	success := C.secp256k1_ecdsa_verify(cBuf(msg),
-		C.int(len(msg)),
+func Verify(msgHash [hashLen]byte, sig []byte, pubkey []byte) bool {
+	success := C.secp256k1_ecdsa_verify(cBuf(msgHash[:]),
 		cBuf(sig),
 		C.int(len(sig)),
 		cBuf(pubkey),
