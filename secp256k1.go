@@ -14,60 +14,63 @@ import "unsafe"
 
 const hashLen int = 32
 
-func Start() {
-	C.secp256k1_start(C.SECP256K1_START_VERIFY | C.SECP256K1_START_SIGN)
+type Context struct {
+	context *C.secp256k1_context
 }
 
-func Stop() {
-	C.secp256k1_stop()
+func (c *Context) Create() {
+	flag := C.uint(C.SECP256K1_CONTEXT_VERIFY | C.SECP256K1_CONTEXT_SIGN)
+	c.context = C.secp256k1_context_create(flag)
 }
 
-func Pubkey_create(seckey [32]byte, compressed bool) ([]byte, bool) {
-	comp := C.int(0)
-	bufsize := 65
-	if compressed {
-		comp = 1
-		bufsize = 33
+func (c *Context) Destroy() {
+	C.secp256k1_context_destroy(c.context)
+}
+
+type Pubkey struct {
+	pubkey *C.secp256k1_pubkey
+}
+
+type Signature struct {
+	sig *C.secp256k1_ecdsa_signature
+}
+
+func Pubkey_create(context Context, seckey [32]byte, compressed bool) (Pubkey, bool) {
+	pubkey := Pubkey{
+		pubkey: &C.secp256k1_pubkey{},
 	}
-	pubkey := make([]C.uchar, bufsize)
-	pubkeylen := C.int(0)
-	success := C.secp256k1_ec_pubkey_create(&pubkey[0],
-		&pubkeylen,
-		cBuf(seckey[:]),
-		comp)
-	return C.GoBytes(unsafe.Pointer(&pubkey[0]), pubkeylen), goBool(success)
+	success := C.secp256k1_ec_pubkey_create(
+		context.context,
+		pubkey.pubkey,
+		cBuf(seckey[:]))
+	return pubkey, goBool(success)
 }
 
-func Seckey_verify(seckey [32]byte) bool {
-	success := C.secp256k1_ec_seckey_verify(cBuf(seckey[:]))
+func Seckey_verify(context Context, seckey [32]byte) bool {
+	success := C.secp256k1_ec_seckey_verify(context.context, cBuf(seckey[:]))
 	return goBool(success)
 }
 
-func Pubkey_verify(pubkey []byte) bool {
-	success := C.secp256k1_ec_pubkey_verify(cBuf(pubkey), C.int(len(pubkey)))
-	return goBool(success)
-}
-
-func Sign(msgHash [hashLen]byte, seckey [32]byte, nonce *[32]byte) ([]byte, bool) {
-	var sig [72]C.uchar
-	siglen := C.int(len(sig))
-	success := C.secp256k1_ecdsa_sign(cBuf(msgHash[:]),
-		&sig[0],
-		&siglen,
+func Sign(context Context, msgHash [hashLen]byte, seckey [32]byte, nonce *[32]byte) (Signature, bool) {
+	sig := Signature{
+		sig: &C.secp256k1_ecdsa_signature{},
+	}
+	success := C.secp256k1_ecdsa_sign(
+		context.context,
+		sig.sig,
+		cBuf(msgHash[:]),
 		cBuf(seckey[:]),
 		nil,
 		unsafe.Pointer(nonce))
-	return C.GoBytes(unsafe.Pointer(&sig[0]), siglen), goBool(success)
+	return sig, goBool(success)
 }
 
-func Verify(msgHash [hashLen]byte, sig []byte, pubkey []byte) bool {
-	success := C.secp256k1_ecdsa_verify(cBuf(msgHash[:]),
-		cBuf(sig),
-		C.int(len(sig)),
-		cBuf(pubkey),
-		C.int(len(pubkey)))
-	// success can be also -1 and -2 to indicate invalid sig or invalid pubkey
-	// for now we just ignore that
+func Verify(context Context, msgHash [hashLen]byte, sig Signature, pubkey Pubkey) bool {
+	success := C.secp256k1_ecdsa_verify(
+		context.context,
+		sig.sig,
+		cBuf(msgHash[:]),
+		pubkey.pubkey)
 	return goBool(success)
 }
 
