@@ -1,7 +1,7 @@
 package secp256k1
 
 // #include "c-secp256k1/include/secp256k1.h"
-// #cgo LDFLAGS: ../../../github.com/toxeus/go-secp256k1/c-secp256k1/.libs/libsecp256k1.a -lgmp 
+// #cgo LDFLAGS: ${SRCDIR}/c-secp256k1/.libs/libsecp256k1.a -lgmp 
 import "C"
 import "unsafe"
 
